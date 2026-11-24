@@ -1,0 +1,10 @@
+{
+  "name": "POMS V3 - نظام إدارة مكتب النائب",
+  "description": "نظام إدارة مكتب النائب الإصدار الثالث (POMS V3) لإدارة شؤون المواطنين والطلبات والصادر والوارد والوزارات والأرشيف الإلكتروني والخطابات الرسمية.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

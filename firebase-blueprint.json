@@ -1,0 +1,334 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "Parliamentary office employee account with RBAC role and activity tracking.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "username": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "jobTitle": { "type": "string", "maxLength": 100 },
+        "department": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["super_admin", "reception", "followup", "printing"] },
+        "permissions": { "type": "array" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "avatarUrl": { "type": "string", "maxLength": 400 },
+        "completedRequestsCount": { "type": "integer" },
+        "lastActivityLabel": { "type": "string", "maxLength": 200 },
+        "lastLoginAt": { "type": "string", "format": "date-time" },
+        "lastActivityAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "fullName", "username", "jobTitle", "department", "role", "permissions", "status", "completedRequestsCount", "createdAt", "updatedAt"]
+    },
+    "EmployeeInvite": {
+      "title": "EmployeeInvite",
+      "description": "Pre-authorized employee account invitation created by Super Admin.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "username": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "jobTitle": { "type": "string", "maxLength": 100 },
+        "department": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["super_admin", "reception", "followup", "printing"] },
+        "permissions": { "type": "array" },
+        "status": { "type": "string", "enum": ["pending", "claimed", "revoked"] },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "fullName", "username", "jobTitle", "department", "role", "permissions", "status", "createdByUid", "createdAt"]
+    },
+    "NationalIdRegistry": {
+      "title": "NationalIdRegistry",
+      "description": "Zero-PII registry guaranteeing unique 14-digit National IDs without exposing citizen records.",
+      "type": "object",
+      "properties": {
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["createdAt"]
+    },
+    "Citizen": {
+      "title": "Citizen",
+      "description": "Citizen record registered via public portal or office reception.",
+      "type": "object",
+      "properties": {
+        "seqNumber": { "type": "integer" },
+        "registrationNumber": { "type": "string", "maxLength": 40 },
+        "fullName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "age": { "type": "integer" },
+        "nationalId": { "type": "string", "pattern": "^[0-9]{14}$", "minLength": 14, "maxLength": 14 },
+        "phone": { "type": "string", "pattern": "^[0-9]{11}$", "minLength": 11, "maxLength": 11 },
+        "whatsapp": { "type": "string", "maxLength": 20 },
+        "governorate": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "center": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "village": { "type": "string", "maxLength": 80 },
+        "detailedAddress": { "type": "string", "minLength": 1, "maxLength": 250 },
+        "reviewStatus": {
+          "type": "string",
+          "enum": ["بيانات كاملة", "ناقص مراته", "ناقص جوزها", "ناقص بياناته كلها", "ناقص أزواجهم", "بانتظار المراجعة", "مرفوض", "مطلوب استكمال بيانات"]
+        },
+        "registrationSource": { "type": "string", "enum": ["بوابة المواطن", "استقبال المكتب", "استيراد"] },
+        "registeredByUid": { "type": "string", "maxLength": 128 },
+        "registeredByName": { "type": "string", "maxLength": 120 },
+        "initialRequestType": { "type": "string", "maxLength": 40 },
+        "initialRequestDescription": { "type": "string", "maxLength": 2000 },
+        "reviewNotes": { "type": "string", "maxLength": 500 },
+        "hasFrontId": { "type": "boolean" },
+        "hasBackId": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["seqNumber", "registrationNumber", "fullName", "age", "nationalId", "phone", "governorate", "center", "detailedAddress", "reviewStatus", "registrationSource", "registeredByUid", "registeredByName", "hasFrontId", "hasBackId", "createdAt", "updatedAt"]
+    },
+    "CitizenDocument": {
+      "title": "CitizenDocument",
+      "description": "Protected national ID card front/back image stored privately for authorized staff.",
+      "type": "object",
+      "properties": {
+        "citizenId": { "type": "string", "maxLength": 128 },
+        "docType": { "type": "string", "enum": ["front_id", "back_id"] },
+        "mimeType": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp"] },
+        "fileName": { "type": "string", "maxLength": 160 },
+        "fileSize": { "type": "integer" },
+        "dataUrl": { "type": "string", "maxLength": 400000 },
+        "uploadedByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["citizenId", "docType", "mimeType", "fileName", "fileSize", "dataUrl", "uploadedByUid", "createdAt"]
+    },
+    "Ministry": {
+      "title": "Ministry",
+      "description": "Ministry or government authority tracked by the office.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "code": { "type": "string", "maxLength": 30 },
+        "sector": { "type": "string", "maxLength": 80 },
+        "contactPerson": { "type": "string", "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "email": { "type": "string", "maxLength": 160 },
+        "address": { "type": "string", "maxLength": 250 },
+        "departments": { "type": "array" },
+        "isActive": { "type": "boolean" },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "code", "sector", "departments", "isActive", "createdAt", "updatedAt"]
+    },
+    "RequestRecord": {
+      "title": "RequestRecord",
+      "description": "Citizen request and SADER/WARED correspondence item.",
+      "type": "object",
+      "properties": {
+        "requestNumber": { "type": "string", "maxLength": 40 },
+        "direction": { "type": "string", "enum": ["وارد", "صادر"] },
+        "saderNumber": { "type": "string", "maxLength": 40 },
+        "waredNumber": { "type": "string", "maxLength": 40 },
+        "requestType": { "type": "string", "enum": ["شكوى", "طلب", "تزكية", "علاج", "وظيفة", "خدمة عامة"] },
+        "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 3000 },
+        "citizenId": { "type": "string", "maxLength": 128 },
+        "citizenName": { "type": "string", "maxLength": 120 },
+        "citizenNationalId": { "type": "string", "maxLength": 14 },
+        "ministryId": { "type": "string", "maxLength": 128 },
+        "ministryName": { "type": "string", "maxLength": 140 },
+        "status": {
+          "type": "string",
+          "enum": ["جديد", "قيد المراجعة", "قيد التنفيذ", "بانتظار رد الوزارة", "مكتمل", "مرفوض", "يحتاج استكمال بيانات", "مؤجل"]
+        },
+        "priority": { "type": "string", "enum": ["عادي", "عاجل", "طارئ"] },
+        "assignedToUid": { "type": "string", "maxLength": 128 },
+        "assignedToName": { "type": "string", "maxLength": 120 },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdByName": { "type": "string", "maxLength": 120 },
+        "submissionDate": { "type": "string", "maxLength": 30 },
+        "deadlineDate": { "type": "string", "maxLength": 30 },
+        "completionDate": { "type": "string", "maxLength": 30 },
+        "officialResponse": { "type": "string", "maxLength": 2000 },
+        "readyForPrint": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requestNumber", "direction", "requestType", "title", "description", "citizenId", "citizenName", "status", "priority", "createdByUid", "createdByName", "submissionDate", "readyForPrint", "createdAt", "updatedAt"]
+    },
+    "RequestHistory": {
+      "title": "RequestHistory",
+      "description": "Immutable status transition and follow-up timeline log for requests.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string", "maxLength": 128 },
+        "requestNumber": { "type": "string", "maxLength": 40 },
+        "fromStatus": { "type": "string", "maxLength": 40 },
+        "toStatus": { "type": "string", "maxLength": 40 },
+        "actionNote": { "type": "string", "maxLength": 1000 },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["requestId", "requestNumber", "fromStatus", "toStatus", "actionNote", "actorUid", "actorName", "createdAt"]
+    },
+    "ArchiveDocument": {
+      "title": "ArchiveDocument",
+      "description": "Categorized electronic archive document metadata and secure payload.",
+      "type": "object",
+      "properties": {
+        "archivePath": { "type": "string", "maxLength": 400 },
+        "requestType": { "type": "string", "maxLength": 60 },
+        "ministryId": { "type": "string", "maxLength": 128 },
+        "ministryName": { "type": "string", "maxLength": 140 },
+        "requestId": { "type": "string", "maxLength": 128 },
+        "requestNumber": { "type": "string", "maxLength": 40 },
+        "citizenId": { "type": "string", "maxLength": 128 },
+        "citizenName": { "type": "string", "maxLength": 120 },
+        "fileName": { "type": "string", "maxLength": 180 },
+        "fileFormat": { "type": "string", "enum": ["pdf", "docx", "image"] },
+        "mimeType": { "type": "string", "maxLength": 120 },
+        "fileSize": { "type": "integer" },
+        "dataUrl": { "type": "string", "maxLength": 650000 },
+        "uploadedByUid": { "type": "string", "maxLength": 128 },
+        "uploadedByName": { "type": "string", "maxLength": 120 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["archivePath", "requestType", "ministryName", "requestNumber", "fileName", "fileFormat", "mimeType", "fileSize", "dataUrl", "uploadedByUid", "uploadedByName", "createdAt"]
+    },
+    "LetterTemplate": {
+      "title": "LetterTemplate",
+      "description": "Official parliamentary letterhead template managed by Super Admin.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "category": { "type": "string", "maxLength": 60 },
+        "officeTitle": { "type": "string", "maxLength": 160 },
+        "deputyName": { "type": "string", "maxLength": 120 },
+        "headerSubtitle": { "type": "string", "maxLength": 200 },
+        "bodyTemplate": { "type": "string", "maxLength": 5000 },
+        "signatureTitle": { "type": "string", "maxLength": 120 },
+        "footerText": { "type": "string", "maxLength": 300 },
+        "isDefault": { "type": "boolean" },
+        "updatedByUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "category", "officeTitle", "deputyName", "bodyTemplate", "signatureTitle", "footerText", "isDefault", "updatedByUid", "createdAt", "updatedAt"]
+    },
+    "PrintedDocument": {
+      "title": "PrintedDocument",
+      "description": "Official letters queued for printing and print history tracking.",
+      "type": "object",
+      "properties": {
+        "referenceNumber": { "type": "string", "maxLength": 60 },
+        "title": { "type": "string", "maxLength": 200 },
+        "requestId": { "type": "string", "maxLength": 128 },
+        "requestNumber": { "type": "string", "maxLength": 40 },
+        "citizenName": { "type": "string", "maxLength": 120 },
+        "ministryName": { "type": "string", "maxLength": 140 },
+        "renderedContent": { "type": "string", "maxLength": 8000 },
+        "officeTitle": { "type": "string", "maxLength": 160 },
+        "deputyName": { "type": "string", "maxLength": 120 },
+        "signatureTitle": { "type": "string", "maxLength": 120 },
+        "footerText": { "type": "string", "maxLength": 300 },
+        "status": { "type": "string", "enum": ["pending_print", "printed"] },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdByName": { "type": "string", "maxLength": 120 },
+        "printedByUid": { "type": "string", "maxLength": 128 },
+        "printedByName": { "type": "string", "maxLength": 120 },
+        "printCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["referenceNumber", "title", "renderedContent", "status", "createdByUid", "createdByName", "printCount", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable security and operational audit log.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 120 },
+        "actorEmail": { "type": "string", "maxLength": 160 },
+        "action": { "type": "string", "maxLength": 100 },
+        "targetType": { "type": "string", "maxLength": 60 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "actorName", "action", "targetType", "targetId", "details", "createdAt"]
+    },
+    "OfficeSettings": {
+      "title": "OfficeSettings",
+      "description": "Parliamentary office institutional profile and global defaults.",
+      "type": "object",
+      "properties": {
+        "officeName": { "type": "string", "maxLength": 160 },
+        "deputyName": { "type": "string", "maxLength": 120 },
+        "governorate": { "type": "string", "maxLength": 80 },
+        "address": { "type": "string", "maxLength": 240 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "email": { "type": "string", "maxLength": 160 },
+        "defaultFooter": { "type": "string", "maxLength": 300 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["officeName", "deputyName", "governorate", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/employees/{uid}": {
+      "schema": { "$ref": "#/entities/Employee" },
+      "description": "Registered office employees and roles."
+    },
+    "/employee_invites/{inviteId}": {
+      "schema": { "$ref": "#/entities/EmployeeInvite" },
+      "description": "Pre-authorized employee invitations."
+    },
+    "/national_id_registry/{nationalId}": {
+      "schema": { "$ref": "#/entities/NationalIdRegistry" },
+      "description": "Unique 14-digit national ID reservation without PII."
+    },
+    "/citizens/{citizenId}": {
+      "schema": { "$ref": "#/entities/Citizen" },
+      "description": "Citizens database (empty by default)."
+    },
+    "/citizen_documents/{docId}": {
+      "schema": { "$ref": "#/entities/CitizenDocument" },
+      "description": "Private national ID front/back images."
+    },
+    "/ministries/{ministryId}": {
+      "schema": { "$ref": "#/entities/Ministry" },
+      "description": "Government ministries directory."
+    },
+    "/requests/{requestId}": {
+      "schema": { "$ref": "#/entities/RequestRecord" },
+      "description": "SADER and WARED requests and correspondence."
+    },
+    "/request_history/{historyId}": {
+      "schema": { "$ref": "#/entities/RequestHistory" },
+      "description": "Immutable request follow-up history."
+    },
+    "/archive_documents/{docId}": {
+      "schema": { "$ref": "#/entities/ArchiveDocument" },
+      "description": "Electronic archive documents."
+    },
+    "/letter_templates/{templateId}": {
+      "schema": { "$ref": "#/entities/LetterTemplate" },
+      "description": "Official letter templates."
+    },
+    "/printed_documents/{printId}": {
+      "schema": { "$ref": "#/entities/PrintedDocument" },
+      "description": "Approved print queue and print logs."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable system and PII access audit logs."
+    },
+    "/office_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/OfficeSettings" },
+      "description": "Parliamentary office global settings."
+    }
+  }
+}

@@ -1,0 +1,488 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Primitives ---
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-@.]+$');
+    }
+
+    function isValidNationalId(nid) {
+      return nid is string && nid.size() == 14 && nid.matches('^[0-9]{14}$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedSuperAdmin() {
+      return isSignedIn() && request.auth.token.email == 'mosmohamed221@gmail.com';
+    }
+
+    function hasEmployeeDoc() {
+      return isSignedIn() && exists(/databases/$(database)/documents/employees/$(request.auth.uid));
+    }
+
+    function employeeData() {
+      return get(/databases/$(database)/documents/employees/$(request.auth.uid)).data;
+    }
+
+    function isActiveEmployee() {
+      return isBootstrappedSuperAdmin() || (hasEmployeeDoc() && employeeData().status == 'active');
+    }
+
+    function isSuperAdmin() {
+      return isBootstrappedSuperAdmin() || (hasEmployeeDoc() && employeeData().status == 'active' && employeeData().role == 'super_admin');
+    }
+
+    function employeeRole() {
+      return isBootstrappedSuperAdmin() ? 'super_admin' : employeeData().role;
+    }
+
+    function isReception() {
+      return isActiveEmployee() && (isSuperAdmin() || employeeRole() == 'reception');
+    }
+
+    function isFollowup() {
+      return isActiveEmployee() && (isSuperAdmin() || employeeRole() == 'followup');
+    }
+
+    function isPrinting() {
+      return isActiveEmployee() && (isSuperAdmin() || employeeRole() == 'printing');
+    }
+
+    function isStr(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidEmployee(data) {
+      return data.keys().hasAll(['uid', 'email', 'fullName', 'username', 'jobTitle', 'department', 'role', 'permissions', 'status', 'completedRequestsCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'fullName', 'username', 'jobTitle', 'department', 'role', 'permissions', 'status', 'avatarUrl', 'completedRequestsCount', 'lastActivityLabel', 'lastLoginAt', 'lastActivityAt', 'createdAt', 'updatedAt'])
+        && isStr(data.uid, 1, 128)
+        && isStr(data.email, 3, 160)
+        && isStr(data.fullName, 2, 120)
+        && isStr(data.username, 2, 60)
+        && isStr(data.jobTitle, 1, 100)
+        && isStr(data.department, 1, 100)
+        && data.role in ['super_admin', 'reception', 'followup', 'printing']
+        && data.permissions is list && data.permissions.size() <= 25
+        && data.status in ['active', 'inactive']
+        && (!('avatarUrl' in data) || isStr(data.avatarUrl, 0, 400))
+        && data.completedRequestsCount is int && data.completedRequestsCount >= 0
+        && (!('lastActivityLabel' in data) || isStr(data.lastActivityLabel, 0, 200))
+        && (!('lastLoginAt' in data) || data.lastLoginAt is timestamp)
+        && (!('lastActivityAt' in data) || data.lastActivityAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInvite(data) {
+      return data.keys().hasAll(['email', 'fullName', 'username', 'jobTitle', 'department', 'role', 'permissions', 'status', 'createdByUid', 'createdAt'])
+        && data.keys().hasOnly(['email', 'fullName', 'username', 'jobTitle', 'department', 'role', 'permissions', 'status', 'createdByUid', 'createdAt'])
+        && isStr(data.email, 3, 160)
+        && isStr(data.fullName, 2, 120)
+        && isStr(data.username, 2, 60)
+        && isStr(data.jobTitle, 1, 100)
+        && isStr(data.department, 1, 100)
+        && data.role in ['super_admin', 'reception', 'followup', 'printing']
+        && data.permissions is list && data.permissions.size() <= 25
+        && data.status in ['pending', 'claimed', 'revoked']
+        && isStr(data.createdByUid, 1, 128)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCitizen(data) {
+      return data.keys().hasAll(['seqNumber', 'registrationNumber', 'fullName', 'age', 'nationalId', 'phone', 'governorate', 'center', 'detailedAddress', 'reviewStatus', 'registrationSource', 'registeredByUid', 'registeredByName', 'hasFrontId', 'hasBackId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['seqNumber', 'registrationNumber', 'fullName', 'age', 'nationalId', 'phone', 'whatsapp', 'governorate', 'center', 'village', 'detailedAddress', 'reviewStatus', 'registrationSource', 'registeredByUid', 'registeredByName', 'initialRequestType', 'initialRequestDescription', 'reviewNotes', 'hasFrontId', 'hasBackId', 'createdAt', 'updatedAt'])
+        && data.seqNumber is int && data.seqNumber >= 1
+        && isStr(data.registrationNumber, 3, 40)
+        && isStr(data.fullName, 2, 120)
+        && data.age is int && data.age >= 1 && data.age <= 120
+        && isValidNationalId(data.nationalId)
+        && isStr(data.phone, 11, 11) && data.phone.matches('^[0-9]{11}$')
+        && (!('whatsapp' in data) || isStr(data.whatsapp, 0, 20))
+        && isStr(data.governorate, 1, 80)
+        && isStr(data.center, 1, 80)
+        && (!('village' in data) || isStr(data.village, 0, 80))
+        && isStr(data.detailedAddress, 1, 250)
+        && data.reviewStatus in ['بيانات كاملة', 'ناقص مراته', 'ناقص جوزها', 'ناقص بياناته كلها', 'ناقص أزواجهم', 'بانتظار المراجعة', 'مرفوض', 'مطلوب استكمال بيانات']
+        && data.registrationSource in ['بوابة المواطن', 'استقبال المكتب', 'استيراد']
+        && isStr(data.registeredByUid, 1, 128)
+        && isStr(data.registeredByName, 1, 120)
+        && (!('initialRequestType' in data) || isStr(data.initialRequestType, 0, 40))
+        && (!('initialRequestDescription' in data) || isStr(data.initialRequestDescription, 0, 2000))
+        && (!('reviewNotes' in data) || isStr(data.reviewNotes, 0, 500))
+        && data.hasFrontId is bool
+        && data.hasBackId is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCitizenDocument(data) {
+      return data.keys().hasAll(['citizenId', 'docType', 'mimeType', 'fileName', 'fileSize', 'dataUrl', 'uploadedByUid', 'createdAt'])
+        && data.keys().hasOnly(['citizenId', 'docType', 'mimeType', 'fileName', 'fileSize', 'dataUrl', 'uploadedByUid', 'createdAt'])
+        && isValidId(data.citizenId)
+        && data.docType in ['front_id', 'back_id']
+        && data.mimeType in ['image/jpeg', 'image/png', 'image/webp']
+        && isStr(data.fileName, 1, 160)
+        && data.fileSize is int && data.fileSize > 0 && data.fileSize <= 5242880
+        && isStr(data.dataUrl, 20, 400000)
+        && data.dataUrl.matches('^data:image/(jpeg|png|webp);base64,.*')
+        && isStr(data.uploadedByUid, 1, 128)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidMinistry(data) {
+      return data.keys().hasAll(['name', 'code', 'sector', 'departments', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'code', 'sector', 'contactPerson', 'phone', 'email', 'address', 'departments', 'isActive', 'notes', 'createdAt', 'updatedAt'])
+        && isStr(data.name, 2, 140)
+        && isStr(data.code, 1, 30)
+        && isStr(data.sector, 1, 80)
+        && (!('contactPerson' in data) || isStr(data.contactPerson, 0, 120))
+        && (!('phone' in data) || isStr(data.phone, 0, 30))
+        && (!('email' in data) || isStr(data.email, 0, 160))
+        && (!('address' in data) || isStr(data.address, 0, 250))
+        && data.departments is list && data.departments.size() <= 30
+        && data.isActive is bool
+        && (!('notes' in data) || isStr(data.notes, 0, 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRequest(data) {
+      return data.keys().hasAll(['requestNumber', 'direction', 'requestType', 'title', 'description', 'citizenId', 'citizenName', 'status', 'priority', 'createdByUid', 'createdByName', 'submissionDate', 'readyForPrint', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['requestNumber', 'direction', 'saderNumber', 'waredNumber', 'requestType', 'title', 'description', 'citizenId', 'citizenName', 'citizenNationalId', 'ministryId', 'ministryName', 'status', 'priority', 'assignedToUid', 'assignedToName', 'createdByUid', 'createdByName', 'submissionDate', 'deadlineDate', 'completionDate', 'officialResponse', 'readyForPrint', 'createdAt', 'updatedAt'])
+        && isStr(data.requestNumber, 3, 40)
+        && data.direction in ['وارد', 'صادر']
+        && (!('saderNumber' in data) || isStr(data.saderNumber, 0, 40))
+        && (!('waredNumber' in data) || isStr(data.waredNumber, 0, 40))
+        && data.requestType in ['شكوى', 'طلب', 'تزكية', 'علاج', 'وظيفة', 'خدمة عامة']
+        && isStr(data.title, 2, 200)
+        && isStr(data.description, 1, 3000)
+        && isStr(data.citizenId, 1, 128)
+        && isStr(data.citizenName, 1, 120)
+        && (!('citizenNationalId' in data) || isStr(data.citizenNationalId, 0, 14))
+        && (!('ministryId' in data) || isStr(data.ministryId, 0, 128))
+        && (!('ministryName' in data) || isStr(data.ministryName, 0, 140))
+        && data.status in ['جديد', 'قيد المراجعة', 'قيد التنفيذ', 'بانتظار رد الوزارة', 'مكتمل', 'مرفوض', 'يحتاج استكمال بيانات', 'مؤجل']
+        && data.priority in ['عادي', 'عاجل', 'طارئ']
+        && (!('assignedToUid' in data) || isStr(data.assignedToUid, 0, 128))
+        && (!('assignedToName' in data) || isStr(data.assignedToName, 0, 120))
+        && isStr(data.createdByUid, 1, 128)
+        && isStr(data.createdByName, 1, 120)
+        && isStr(data.submissionDate, 4, 30)
+        && (!('deadlineDate' in data) || isStr(data.deadlineDate, 0, 30))
+        && (!('completionDate' in data) || isStr(data.completionDate, 0, 30))
+        && (!('officialResponse' in data) || isStr(data.officialResponse, 0, 2000))
+        && data.readyForPrint is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRequestHistory(data) {
+      return data.keys().hasAll(['requestId', 'requestNumber', 'fromStatus', 'toStatus', 'actionNote', 'actorUid', 'actorName', 'createdAt'])
+        && data.keys().hasOnly(['requestId', 'requestNumber', 'fromStatus', 'toStatus', 'actionNote', 'actorUid', 'actorName', 'createdAt'])
+        && isStr(data.requestId, 1, 128)
+        && isStr(data.requestNumber, 1, 40)
+        && isStr(data.fromStatus, 1, 40)
+        && isStr(data.toStatus, 1, 40)
+        && isStr(data.actionNote, 1, 1000)
+        && isStr(data.actorUid, 1, 128)
+        && isStr(data.actorName, 1, 120)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidArchiveDoc(data) {
+      return data.keys().hasAll(['archivePath', 'requestType', 'ministryName', 'requestNumber', 'fileName', 'fileFormat', 'mimeType', 'fileSize', 'dataUrl', 'uploadedByUid', 'uploadedByName', 'createdAt'])
+        && data.keys().hasOnly(['archivePath', 'requestType', 'ministryId', 'ministryName', 'requestId', 'requestNumber', 'citizenId', 'citizenName', 'fileName', 'fileFormat', 'mimeType', 'fileSize', 'dataUrl', 'uploadedByUid', 'uploadedByName', 'notes', 'createdAt'])
+        && isStr(data.archivePath, 2, 400)
+        && isStr(data.requestType, 1, 60)
+        && (!('ministryId' in data) || isStr(data.ministryId, 0, 128))
+        && isStr(data.ministryName, 1, 140)
+        && (!('requestId' in data) || isStr(data.requestId, 0, 128))
+        && isStr(data.requestNumber, 1, 40)
+        && (!('citizenId' in data) || isStr(data.citizenId, 0, 128))
+        && (!('citizenName' in data) || isStr(data.citizenName, 0, 120))
+        && isStr(data.fileName, 1, 180)
+        && data.fileFormat in ['pdf', 'docx', 'image']
+        && isStr(data.mimeType, 1, 120)
+        && data.fileSize is int && data.fileSize > 0 && data.fileSize <= 5242880
+        && isStr(data.dataUrl, 10, 650000)
+        && isStr(data.uploadedByUid, 1, 128)
+        && isStr(data.uploadedByName, 1, 120)
+        && (!('notes' in data) || isStr(data.notes, 0, 500))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidLetterTemplate(data) {
+      return data.keys().hasAll(['name', 'category', 'officeTitle', 'deputyName', 'bodyTemplate', 'signatureTitle', 'footerText', 'isDefault', 'updatedByUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'category', 'officeTitle', 'deputyName', 'headerSubtitle', 'bodyTemplate', 'signatureTitle', 'footerText', 'isDefault', 'updatedByUid', 'createdAt', 'updatedAt'])
+        && isStr(data.name, 2, 120)
+        && isStr(data.category, 1, 60)
+        && isStr(data.officeTitle, 1, 160)
+        && isStr(data.deputyName, 1, 120)
+        && (!('headerSubtitle' in data) || isStr(data.headerSubtitle, 0, 200))
+        && isStr(data.bodyTemplate, 1, 5000)
+        && isStr(data.signatureTitle, 1, 120)
+        && isStr(data.footerText, 1, 300)
+        && data.isDefault is bool
+        && isStr(data.updatedByUid, 1, 128)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPrintedDocument(data) {
+      return data.keys().hasAll(['referenceNumber', 'title', 'renderedContent', 'status', 'createdByUid', 'createdByName', 'printCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['referenceNumber', 'title', 'requestId', 'requestNumber', 'citizenName', 'ministryName', 'renderedContent', 'officeTitle', 'deputyName', 'signatureTitle', 'footerText', 'status', 'createdByUid', 'createdByName', 'printedByUid', 'printedByName', 'printCount', 'createdAt', 'updatedAt'])
+        && isStr(data.referenceNumber, 2, 60)
+        && isStr(data.title, 2, 200)
+        && (!('requestId' in data) || isStr(data.requestId, 0, 128))
+        && (!('requestNumber' in data) || isStr(data.requestNumber, 0, 40))
+        && (!('citizenName' in data) || isStr(data.citizenName, 0, 120))
+        && (!('ministryName' in data) || isStr(data.ministryName, 0, 140))
+        && isStr(data.renderedContent, 1, 8000)
+        && (!('officeTitle' in data) || isStr(data.officeTitle, 0, 160))
+        && (!('deputyName' in data) || isStr(data.deputyName, 0, 120))
+        && (!('signatureTitle' in data) || isStr(data.signatureTitle, 0, 120))
+        && (!('footerText' in data) || isStr(data.footerText, 0, 300))
+        && data.status in ['pending_print', 'printed']
+        && isStr(data.createdByUid, 1, 128)
+        && isStr(data.createdByName, 1, 120)
+        && (!('printedByUid' in data) || isStr(data.printedByUid, 0, 128))
+        && (!('printedByName' in data) || isStr(data.printedByName, 0, 120))
+        && data.printCount is int && data.printCount >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorUid', 'actorName', 'action', 'targetType', 'targetId', 'details', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorName', 'actorEmail', 'action', 'targetType', 'targetId', 'details', 'createdAt'])
+        && isStr(data.actorUid, 1, 128)
+        && isStr(data.actorName, 1, 120)
+        && (!('actorEmail' in data) || isStr(data.actorEmail, 0, 160))
+        && isStr(data.action, 1, 100)
+        && isStr(data.targetType, 1, 60)
+        && isStr(data.targetId, 1, 128)
+        && isStr(data.details, 1, 500)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidOfficeSettings(data) {
+      return data.keys().hasAll(['officeName', 'deputyName', 'governorate', 'updatedAt'])
+        && data.keys().hasOnly(['officeName', 'deputyName', 'governorate', 'address', 'phone', 'email', 'defaultFooter', 'updatedAt'])
+        && isStr(data.officeName, 2, 160)
+        && isStr(data.deputyName, 2, 120)
+        && isStr(data.governorate, 1, 80)
+        && (!('address' in data) || isStr(data.address, 0, 240))
+        && (!('phone' in data) || isStr(data.phone, 0, 30))
+        && (!('email' in data) || isStr(data.email, 0, 160))
+        && (!('defaultFooter' in data) || isStr(data.defaultFooter, 0, 300))
+        && data.updatedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+    match /employees/{uid} {
+      allow get: if isValidId(uid) && isSignedIn() && (request.auth.uid == uid || isActiveEmployee());
+      allow list: if isActiveEmployee();
+      allow create: if isValidId(uid) && isSignedIn() && isValidEmployee(incoming())
+        && incoming().uid == uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || (isBootstrappedSuperAdmin() && request.auth.uid == uid && incoming().role == 'super_admin')
+          || (
+            request.auth.uid == uid
+            && exists(/databases/$(database)/documents/employee_invites/$(request.auth.token.email))
+            && get(/databases/$(database)/documents/employee_invites/$(request.auth.token.email)).data.status == 'pending'
+            && incoming().role == get(/databases/$(database)/documents/employee_invites/$(request.auth.token.email)).data.role
+            && incoming().email == request.auth.token.email
+            && incoming().status == 'active'
+          )
+        );
+      allow update: if isValidId(uid) && isSignedIn() && isValidEmployee(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || (
+            request.auth.uid == uid
+            && incoming().role == existing().role
+            && incoming().status == existing().status
+            && incoming().permissions == existing().permissions
+            && incoming().diff(existing()).affectedKeys().hasOnly(['lastLoginAt', 'lastActivityAt', 'lastActivityLabel', 'completedRequestsCount', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(uid) && isSuperAdmin() && uid != request.auth.uid;
+    }
+
+    match /employee_invites/{inviteId} {
+      allow get: if isValidId(inviteId) && isSignedIn() && (isSuperAdmin() || request.auth.token.email == inviteId);
+      allow list: if isSuperAdmin() || (isSignedIn() && resource.data.email == request.auth.token.email);
+      allow create: if isValidId(inviteId) && isSuperAdmin() && isValidInvite(incoming()) && incoming().createdAt == request.time && incoming().createdByUid == request.auth.uid;
+      allow update: if isValidId(inviteId) && isSignedIn() && isValidInvite(incoming())
+        && incoming().createdAt == existing().createdAt
+        && (
+          isSuperAdmin()
+          || (request.auth.token.email == inviteId && existing().status == 'pending' && incoming().status == 'claimed' && incoming().diff(existing()).affectedKeys().hasOnly(['status']))
+        );
+      allow delete: if isValidId(inviteId) && isSuperAdmin();
+    }
+
+    match /national_id_registry/{nationalId} {
+      allow get: if isValidNationalId(nationalId);
+      allow list: if false;
+      allow create: if isValidNationalId(nationalId)
+        && incoming().keys().hasAll(['createdAt'])
+        && incoming().keys().hasOnly(['createdAt'])
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidNationalId(nationalId) && isSuperAdmin();
+    }
+
+    match /citizens/{citizenId} {
+      allow get: if isValidId(citizenId) && isActiveEmployee();
+      allow list: if isActiveEmployee();
+      allow create: if isValidId(citizenId) && isValidCitizen(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/national_id_registry/$(incoming().nationalId))
+        && (
+          (isReception() && incoming().registeredByUid == request.auth.uid)
+          || (
+            incoming().reviewStatus == 'بانتظار المراجعة'
+            && incoming().registrationSource == 'بوابة المواطن'
+            && incoming().registeredByUid == 'public'
+          )
+        );
+      allow update: if isValidId(citizenId) && isActiveEmployee() && isValidCitizen(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || (isReception() && incoming().nationalId == existing().nationalId)
+          || (isFollowup() && incoming().diff(existing()).affectedKeys().hasOnly(['reviewStatus', 'reviewNotes', 'updatedAt']))
+        );
+      allow delete: if isValidId(citizenId) && isSuperAdmin();
+    }
+
+    match /citizen_documents/{docId} {
+      allow get: if isValidId(docId) && (isReception() || isFollowup());
+      allow list: if isReception() || isFollowup();
+      allow create: if isValidId(docId) && isValidCitizenDocument(incoming())
+        && incoming().createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/citizens/$(incoming().citizenId))
+        && (
+          (isReception() && incoming().uploadedByUid == request.auth.uid)
+          || incoming().uploadedByUid == 'public'
+        );
+      allow update: if isValidId(docId) && isReception() && isValidCitizenDocument(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(docId) && isSuperAdmin();
+    }
+
+    match /ministries/{ministryId} {
+      allow get: if isValidId(ministryId) && isActiveEmployee();
+      allow list: if isActiveEmployee();
+      allow create: if isValidId(ministryId) && (isSuperAdmin() || isFollowup()) && isValidMinistry(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(ministryId) && (isSuperAdmin() || isFollowup()) && isValidMinistry(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(ministryId) && isSuperAdmin();
+    }
+
+    match /requests/{requestId} {
+      allow get: if isValidId(requestId) && isActiveEmployee();
+      allow list: if isActiveEmployee();
+      allow create: if isValidId(requestId) && isValidRequest(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (isActiveEmployee() && incoming().createdByUid == request.auth.uid)
+          || (
+            incoming().status == 'جديد'
+            && incoming().direction == 'وارد'
+            && incoming().createdByUid == 'public'
+            && existsAfter(/databases/$(database)/documents/citizens/$(incoming().citizenId))
+          )
+        );
+      allow update: if isValidId(requestId) && isActiveEmployee() && isValidRequest(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || ((isReception() || isFollowup()) && incoming().requestNumber == existing().requestNumber)
+        );
+      allow delete: if isValidId(requestId) && isSuperAdmin();
+    }
+
+    match /request_history/{historyId} {
+      allow get: if isValidId(historyId) && isActiveEmployee();
+      allow list: if isActiveEmployee();
+      allow create: if isValidId(historyId) && isValidRequestHistory(incoming())
+        && incoming().createdAt == request.time
+        && (
+          (isActiveEmployee() && incoming().actorUid == request.auth.uid)
+          || incoming().actorUid == 'public'
+        );
+      allow update, delete: if false;
+    }
+
+    match /archive_documents/{docId} {
+      allow get: if isValidId(docId) && (isSuperAdmin() || isFollowup() || isPrinting());
+      allow list: if isSuperAdmin() || isFollowup() || isPrinting();
+      allow create: if isValidId(docId) && (isSuperAdmin() || isFollowup()) && isValidArchiveDoc(incoming()) && incoming().createdAt == request.time && incoming().uploadedByUid == request.auth.uid;
+      allow update: if isValidId(docId) && (isSuperAdmin() || isFollowup()) && isValidArchiveDoc(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(docId) && isSuperAdmin();
+    }
+
+    match /letter_templates/{templateId} {
+      allow get: if isValidId(templateId) && isActiveEmployee();
+      allow list: if isActiveEmployee();
+      allow create: if isValidId(templateId) && isSuperAdmin() && isValidLetterTemplate(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(templateId) && isSuperAdmin() && isValidLetterTemplate(incoming()) && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(templateId) && isSuperAdmin();
+    }
+
+    match /printed_documents/{printId} {
+      allow get: if isValidId(printId) && isActiveEmployee();
+      allow list: if isActiveEmployee();
+      allow create: if isValidId(printId) && (isSuperAdmin() || isFollowup() || isReception()) && isValidPrintedDocument(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && incoming().createdByUid == request.auth.uid;
+      allow update: if isValidId(printId) && isActiveEmployee() && isValidPrintedDocument(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || isFollowup()
+          || (isPrinting() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'printedByUid', 'printedByName', 'printCount', 'updatedAt']))
+        );
+      allow delete: if isValidId(printId) && isSuperAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      allow get: if isValidId(logId) && isSuperAdmin();
+      allow list: if isSuperAdmin();
+      allow create: if isValidId(logId) && isValidAuditLog(incoming()) && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /office_settings/{settingId} {
+      allow get: if isValidId(settingId) && isActiveEmployee();
+      allow list: if isActiveEmployee();
+      allow create, update: if isValidId(settingId) && isSuperAdmin() && isValidOfficeSettings(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+  }
+}
